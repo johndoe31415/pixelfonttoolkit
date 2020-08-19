@@ -52,6 +52,21 @@ class ActionConvert(BaseAction):
 		json.dump(bfmdata, f)
 		f.write("\n")
 
+	def _convert_python(self, f):
+		print("from UDisplay import UDisplay", file = f)
+		print(file = f)
+		print("glyphs = {", file = f)
+		for (codepoint, glyph) in self._font:
+			if not self._args.no_optimize:
+				glyph = glyph.optimize()
+			bitmap = glyph.get_bitmap(mode = "ybit")
+			if self._args.verbose >= 2:
+				print(glyph)
+				bitmap.print()
+			glyph_data = ", ".join("0x%02x" % (x) for x in bitmap.data)
+			print("	\"%s\": UDisplay.create_glyph(width = %d, height = %d, xoffset = %d, yoffset = %d, xadvance = %d, data = bytes((%s)))," % (codepoint, glyph.width, glyph.height, glyph.xoffset, glyph.yoffset, glyph.xadvance, glyph_data), file = f)
+		print("}", file = f)
+
 	def run(self):
 		self._font = Font.load_from_file(self._args.font_filename)
 

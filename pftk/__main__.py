@@ -25,6 +25,7 @@ from .ActionImportImage import ActionImportImage
 from .ActionConvert import ActionConvert
 from .ActionDraw import ActionDraw
 from .ActionManipulate import ActionManipulate
+from .ActionDebug import ActionDebug
 
 mc = MultiCommand()
 
@@ -36,7 +37,8 @@ def genparser(parser):
 mc.register("import", "Import a pixel image into the PFG native format", genparser, action = ActionImportImage)
 
 def genparser(parser):
-	parser.add_argument("-f", "--format", choices = [ "ascii", "bitfontmaker" ], default = "ascii", help = "Specifies the output format to write. Can be one of %(choices)s, defaults to %(default)s.")
+	parser.add_argument("--no-optimize", action = "store_true", help = "By default, glyphs are optimized before conversion for some output formats. This option turns this auto-optimization off.")
+	parser.add_argument("-f", "--format", choices = [ "ascii", "bitfontmaker", "python" ], default = "ascii", help = "Specifies the output format to write. Can be one of %(choices)s, defaults to %(default)s.")
 	parser.add_argument("-o", "--outfile", metavar = "filename", required = True, help = "Specifies the output file which should be written. Mandatory argument.")
 	parser.add_argument("-v", "--verbose", action = "count", default = 0, help = "Increase verbosity. Can be specified multiple times to increase even more.")
 	parser.add_argument("font_filename", help = "Font filename to read")
@@ -56,5 +58,10 @@ def genparser(parser):
 	parser.add_argument("-v", "--verbose", action = "count", default = 0, help = "Increase verbosity. Can be specified multiple times to increase even more.")
 	parser.add_argument("manipulator", type = ActionManipulate.parse_manipulator, nargs = "+", help = "Manipulator to apply to glyph(s)")
 mc.register("manipulate", "Manipulate a font", genparser, action = ActionManipulate)
+
+def genparser(parser):
+	parser.add_argument("-v", "--verbose", action = "count", default = 0, help = "Increase verbosity. Can be specified multiple times to increase even more.")
+	parser.add_argument("font_filename", help = "Font filename to read")
+mc.register("debug", "Debug pixelfonttoolkit", genparser, action = ActionDebug)
 
 mc.run(sys.argv[1:])

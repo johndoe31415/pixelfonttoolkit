@@ -75,6 +75,9 @@ class ActionManipulate(BaseAction):
 	def _manipulate_Monospace(self, glyph, xadvance):
 		return Glyph(codepoint = glyph.codepoint, width = glyph.width, height = glyph.height, xoffset = glyph.xoffset, yoffset = glyph.yoffset, xadvance = xadvance, raw_data = glyph.raw_data)
 
+	def _manipulate_Optimize(self, glyph):
+		return glyph.optimize()
+
 	def _manipulate(self, glyph, manipulator):
 		method_name = "_manipulate_" + manipulator.action.name
 		method = getattr(self, method_name)

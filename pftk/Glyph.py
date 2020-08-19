@@ -19,40 +19,74 @@
 #
 #	Johannes Bauer <JohannesBauer@gmx.de>
 
-class BitmapGlyph(object):
-	def __init__(self, data, glyph):
-		assert(len(data) == glyph.width * glyph.height)
-		self._bitmap_data = [ ]
-		self._glyph = glyph
+import collections
 
-		for y in range(self._glyph.height):
-			for x0 in range(0, self._glyph.width, 8):
-				databyte = 0
-				for xoffset in range(8):
-					x = x0 + xoffset
-					if x >= self._glyph.width:
-						bitvalue = 0
-					else:
-						bitvalue = int(data[x + (y * self._glyph.width)])
-					databyte = (databyte >> 1) | (0x80 * bitvalue)
-				self._bitmap_data.append(databyte)
+class BitmapGlyph(object):
+	def __init__(self, glyph, mode = "xbit"):
+		assert(mode in [ "xbit", "ybit" ])
+		self._glyph = glyph
+		self._mode = mode
+		if self._mode == "xbit":
+			self._width = (self._glyph.width + 7) // 8
+			self._height = self._glyph.height
+		else:
+			self._width = self._glyph.width
+			self._height = (self._glyph.height + 7) // 8
+		self._data = bytearray(self._width * self._height)
+
+	@classmethod
+	def create_from_glyph(cls, glyph, threshold, mode = "xbit"):
+		bitmap = BitmapGlyph(glyph = glyph, mode = mode)
+		for (x, y) in glyph.iter_set_pixels(threshold = threshold):
+			bitmap.set_pixel(x, y)
+		return bitmap
 
 	@property
 	def glyph(self):
 		return self._glyph
 
 	@property
-	def data(self):
-		return bytes(self._bitmap_data)
+	def width(self):
+		return self._width
 
 	@property
-	def row_width(self):
-		return (self._glyph.width + 7) // 8
+	def height(self):
+		return self._height
+
+	@property
+	def data(self):
+		return bytes(self._data)
+
+	def _get_offset_bit(self, x, y):
+		assert(0 <= x < self.glyph.width)
+		assert(0 <= y < self.glyph.height)
+		if self._mode == "xbit":
+			byte_offset = (x // 8) + (y * self._width)
+			bit_offset = x % 8
+		elif self._mode == "ybit":
+			byte_offset = (y // 8) + (x * self._height)
+			bit_offset = y % 8
+		else:
+			raise NotImplementedError(self._mode)
+		return (byte_offset, bit_offset)
 
 	def get_pixel(self, x, y):
-		byte_offset = (x // 8) + (y * self.row_width)
-		bit_offset = x % 8
-		return ((self._bitmap_data[byte_offset] >> bit_offset) & 1) != 0
+		(byte_offset, bit_offset) = self._get_offset_bit(x, y)
+		return ((self._data[byte_offset] >> bit_offset) & 1) != 0
+
+	def set_pixel(self, x, y):
+		(byte_offset, bit_offset) = self._get_offset_bit(x, y)
+		self._data[byte_offset] |= (1 << bit_offset)
+
+	def clear_pixel(self, x, y):
+		(byte_offset, bit_offset) = self._get_offset_bit(x, y)
+		self._data[byte_offset] &= ~(1 << bit_offset)
+
+	def set_pixel_to(self, x, y, value):
+		if value:
+			self.set_pixel(x, y)
+		else:
+			self.clear_pixel(x, y)
 
 	def print(self):
 		for y in range(self._glyph.height):
@@ -65,18 +99,9 @@ class BitmapGlyph(object):
 			print(line)
 		print("-" * 120)
 
-	def blit_to(self, pic, x0, y0, auto_offset = True):
-		for gy in range(self._glyph.height):
-			for gx in range(self._glyph.width):
-				if self.get_pixel(gx, gy):
-					x = x0 + gx
-					y = y0 + gy
-					if auto_offset:
-						x += self._glyph.xoffset
-						y += self._glyph.yoffset
-					pic.set_pixel(x, y, (0, 0, 0))
-
 class Glyph(object):
+	_GlyphExtents = collections.namedtuple("GlyphExtents", [ "minx", "maxx", "miny", "maxy" ])
+
 	def __init__(self, codepoint, width, height, xoffset, yoffset, xadvance, raw_data):
 		assert(isinstance(raw_data, bytes))
 		assert(len(raw_data) == width * height)
@@ -123,7 +148,7 @@ class Glyph(object):
 	def get_pixel(self, x, y):
 		return self._raw_data[(y * self.width) + x]
 
-	def iter_set_pixels(self, threshold = 128, mode = "real", ref = (0, 0)):
+	def iter_set_pixels(self, threshold = 255, mode = "real", ref = (0, 0)):
 		assert(mode in [ "real", "virtual" ])
 		for y in range(self.height):
 			for x in range(self.width):
@@ -136,6 +161,36 @@ class Glyph(object):
 						yield (x + self.xoffset + ref[0], y + self.yoffset + ref[1])
 					else:
 						raise NotImplementedError(mode)
+
+	def find_extents(self):
+		(minx, maxx, miny, maxy) = (None, None, None, None)
+		for (x, y) in self.iter_set_pixels(threshold = 255):
+			if (minx is None) or (x < minx):
+				minx = x
+			if (maxx is None) or (x > minx):
+				maxx = x
+			if (miny is None) or (y < miny):
+				miny = y
+			if (maxy is None) or (y > miny):
+				maxy = y
+		return self._GlyphExtents(minx = minx, maxx = maxx, miny = miny, maxy = maxy)
+
+	def optimize(self):
+		extents = self.find_extents()
+		new_width = extents.maxx + 1
+		new_height = extents.maxy + 1
+		raw_data = bytearray(new_width * new_height)
+		for (x, y) in self.iter_set_pixels(threshold = 255):
+			pixel = self.get_pixel(x, y)
+			offset = ((y - extents.minx) * new_width) + (x - extents.maxx)
+			raw_data[offset] = pixel
+		raw_data = bytes(raw_data)
+		new_glyph = Glyph(codepoint = self.codepoint, width = new_width, height = new_height, xoffset = self.xoffset + extents.minx, yoffset = self.yoffset + extents.miny, xadvance = self.xadvance, raw_data = raw_data)
+		return new_glyph
+
+	def get_bitmap(self, threshold = 255, mode = "xbit"):
+		bitmap = BitmapGlyph.create_from_glyph(glyph = self, threshold = threshold, mode = mode)
+		return bitmap
 
 	def print_data(self, f, mode = "values"):
 		assert(mode in [ "values", "dots" ])
