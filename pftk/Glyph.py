@@ -146,6 +146,8 @@ class Glyph(object):
 		return self._raw_data
 
 	def get_pixel(self, x, y):
+		assert(0 <= x < self.width)
+		assert(0 <= y < self.height)
 		return self._raw_data[(y * self.width) + x]
 
 	def iter_set_pixels(self, threshold = 255, mode = "real", ref = (0, 0)):
@@ -162,30 +164,44 @@ class Glyph(object):
 					else:
 						raise NotImplementedError(mode)
 
+	def iter_area(self, xoffset, yoffset, width, height):
+		assert(width >= 0)
+		assert(height >= 0)
+		if (width == 0) or (height == 0):
+			return
+		assert(xoffset + width <= self.width)
+		assert(yoffset + height <= self.height)
+		for y in range(height):
+			for x in range(width):
+				pixel = self.get_pixel(x + xoffset, y + yoffset)
+				yield (x + xoffset, y + yoffset, pixel)
+
 	def find_extents(self):
 		(minx, maxx, miny, maxy) = (None, None, None, None)
 		for (x, y) in self.iter_set_pixels(threshold = 255):
 			if (minx is None) or (x < minx):
 				minx = x
-			if (maxx is None) or (x > minx):
+			if (maxx is None) or (x > maxx):
 				maxx = x
 			if (miny is None) or (y < miny):
 				miny = y
-			if (maxy is None) or (y > miny):
+			if (maxy is None) or (y > maxy):
 				maxy = y
 		return self._GlyphExtents(minx = minx, maxx = maxx, miny = miny, maxy = maxy)
 
 	def optimize(self):
 		extents = self.find_extents()
-		new_width = extents.maxx + 1
-		new_height = extents.maxy + 1
-		raw_data = bytearray(new_width * new_height)
-		for (x, y) in self.iter_set_pixels(threshold = 255):
-			pixel = self.get_pixel(x, y)
-			offset = ((y - extents.minx) * new_width) + (x - extents.maxx)
-			raw_data[offset] = pixel
-		raw_data = bytes(raw_data)
-		new_glyph = Glyph(codepoint = self.codepoint, width = new_width, height = new_height, xoffset = self.xoffset + extents.minx, yoffset = self.yoffset + extents.miny, xadvance = self.xadvance, raw_data = raw_data)
+		if extents.minx is not None:
+			new_width = extents.maxx - extents.minx + 1
+			new_height = extents.maxy - extents.miny + 1
+			raw_data = bytearray(new_width * new_height)
+			for (x, y, pixel) in self.iter_area(extents.minx, extents.miny, new_width, new_height):
+				offset = ((y - extents.miny) * new_width) + (x - extents.minx)
+				raw_data[offset] = pixel
+			raw_data = bytes(raw_data)
+			new_glyph = Glyph(codepoint = self.codepoint, width = new_width, height = new_height, xoffset = self.xoffset + extents.minx, yoffset = self.yoffset + extents.miny, xadvance = self.xadvance, raw_data = raw_data)
+		else:
+			raise NotImplementedError("optimizing completely empty glyph")
 		return new_glyph
 
 	def get_bitmap(self, threshold = 255, mode = "xbit"):

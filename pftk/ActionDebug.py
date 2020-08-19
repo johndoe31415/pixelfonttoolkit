@@ -26,6 +26,8 @@ class ActionDebug(BaseAction):
 	def run(self):
 		self._font = Font.load_from_file(self._args.font_filename)
 		glyph = self._font.get_glyph("3")
+		glyph = glyph.optimize()
+		print(glyph.raw_data.hex())
 		bitmap = glyph.get_bitmap(mode = "ybit")
 		bitmap.print()
 		print(bitmap.data.hex())
