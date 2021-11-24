@@ -64,7 +64,7 @@ class ActionConvert(BaseAction):
 				print(glyph)
 				bitmap.print()
 			glyph_data = ", ".join("0x%02x" % (x) for x in bitmap.data)
-			print("UDisplay.create_glyph(font,name, \"%s\", width = %d, height = %d, xoffset = %d, yoffset = %d, xadvance = %d, data = bytes((%s)))," % (codepoint, glyph.width, glyph.height, glyph.xoffset, glyph.yoffset, glyph.xadvance, glyph_data), file = f)
+			print("UDisplay.create_glyph(font_name, \"%s\", width = %d, height = %d, xoffset = %d, yoffset = %d, xadvance = %d, data = bytes((%s)))," % (codepoint, glyph.width, glyph.height, glyph.xoffset, glyph.yoffset, glyph.xadvance, glyph_data), file = f)
 
 	def run(self):
 		self._font = Font.load_from_file(self._args.font_filename)
