@@ -1,5 +1,5 @@
 #	pixelfonttoolkit - Pixel font generation and handling tools.
-#	Copyright (C) 2020-2020 Johannes Bauer
+#	Copyright (C) 2020-2021 Johannes Bauer
 #
 #	This file is part of pixelfonttoolkit.
 #
@@ -55,7 +55,7 @@ class ActionConvert(BaseAction):
 	def _convert_python(self, f):
 		print("from UDisplay import UDisplay", file = f)
 		print(file = f)
-		print("glyphs = {", file = f)
+		print("font_name = \"default\"", file = f)
 		for (codepoint, glyph) in self._font:
 			if not self._args.no_optimize:
 				glyph = glyph.optimize()
@@ -64,8 +64,7 @@ class ActionConvert(BaseAction):
 				print(glyph)
 				bitmap.print()
 			glyph_data = ", ".join("0x%02x" % (x) for x in bitmap.data)
-			print("	\"%s\": UDisplay.create_glyph(width = %d, height = %d, xoffset = %d, yoffset = %d, xadvance = %d, data = bytes((%s)))," % (codepoint, glyph.width, glyph.height, glyph.xoffset, glyph.yoffset, glyph.xadvance, glyph_data), file = f)
-		print("}", file = f)
+			print("UDisplay.create_glyph(font,name, \"%s\", width = %d, height = %d, xoffset = %d, yoffset = %d, xadvance = %d, data = bytes((%s)))," % (codepoint, glyph.width, glyph.height, glyph.xoffset, glyph.yoffset, glyph.xadvance, glyph_data), file = f)
 
 	def run(self):
 		self._font = Font.load_from_file(self._args.font_filename)
